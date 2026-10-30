@@ -319,6 +319,8 @@ function OutputPicker({ engine }: { engine: PanelProps['engine'] }) {
   const [current, setCurrent] = useState(engine.outputDeviceId);
   const [error, setError] = useState<string | null>(null);
   const [latency, setLatency] = useState(0);
+  /** Bumped after mic permission is granted, to list the devices again with their names */
+  const [scan, setScan] = useState(0);
 
   useEffect(() => {
     const load = () =>
@@ -342,7 +344,23 @@ function OutputPicker({ engine }: { engine: PanelProps['engine'] }) {
       offChange();
       clearInterval(t);
     };
-  }, [engine]);
+  }, [engine, scan]);
+
+  /**
+   * Chrome only reveals output device names to pages that have microphone permission.
+   * Ask once, then stop the mic straight away: nothing is recorded.
+   */
+  const revealNames = async () => {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+      setScan((n) => n + 1);
+    } catch {
+      setError('Microphone permission was not granted, so Chrome keeps the device names hidden.');
+    }
+  };
+  const canAsk = !!navigator.mediaDevices?.getUserMedia;
 
   if (!engine.canChooseOutput) {
     return <p className="muted small">This browser can't choose an output device (needs Chrome or Edge).</p>;
@@ -371,7 +389,21 @@ function OutputPicker({ engine }: { engine: PanelProps['engine'] }) {
         ))}
       </select>
       <div className="muted small">Output latency: {latency ? `${latency.toFixed(0)} ms` : '—'} (reported)</div>
-      {unnamed && <div className="muted small">Chrome only lists output devices to pages with microphone permission, which this app doesn't ask for. Use System default and pick the device in Windows.</div>}
+      {unnamed && canAsk && (
+        <>
+          <button className="small" onClick={revealNames}>
+            Show device names
+          </button>
+          <div className="muted small">
+            Chrome only names output devices for pages with microphone permission. This asks once and turns the mic off right away.
+          </div>
+        </>
+      )}
+      {unnamed && !canAsk && (
+        <div className="muted small">
+          Device names need a secure page (localhost or https). Use System default and pick the device in Windows.
+        </div>
+      )}
       {error && <div className="lat-tip">{error}</div>}
     </div>
   );
