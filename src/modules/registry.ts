@@ -3,7 +3,10 @@ import { keyboard, midiIn } from './inputs';
 import { automation, pianoRoll, sequencer } from './sequencing';
 import { arp } from './notes';
 import { adsr } from './modulation';
-import { drums, sampler } from './sound';
+import { sampler } from './sound';
+import { drums } from './drums';
+import { pads } from './pads';
+import { midiRecorder } from './midiRecorder';
 import { monoSynth, synth } from './synth';
 import { compressor, delay, distortion, eq, filter, lfo, panner, reverb } from './effects';
 import { mixer, output, recorder, vca } from './mixing';
@@ -12,9 +15,11 @@ import { scope, spectrum } from './analysis';
 
 export const MODULES: ModuleDef[] = [
   keyboard,
+  pads,
   midiIn,
   sequencer,
   pianoRoll,
+  midiRecorder,
   arp,
   automation,
   lfo,

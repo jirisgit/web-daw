@@ -1,8 +1,11 @@
-import { useRef, type PointerEvent } from 'react';
+import { useRef, useState, type PointerEvent } from 'react';
 import { useLive } from '../engine/engine';
 import { store } from '../engine/doc';
 import type { ModuleDef, PanelProps } from '../engine/types';
-import { DRUM_NAMES, DRUM_NOTES } from './sound';
+import { DRUM_BASE, DRUM_NAMES } from './drums';
+
+/** Loop lengths offered by the sequencers, in bars */
+const BARS = [1, 2, 4];
 
 /** Lets you click-and-drag across cells to paint them on or off. */
 function usePaint<T>(apply: (key: T, value: boolean) => void) {
@@ -22,10 +25,20 @@ function usePaint<T>(apply: (key: T, value: boolean) => void) {
 }
 
 // ---------------------------------------------------------------------------
-// Drum step sequencer: 4 rows × 16 steps
+// Drum step sequencer: 8 rows × 16 steps per bar, 1, 2 or 4 bars
 // ---------------------------------------------------------------------------
 
-const emptyPattern = () => DRUM_NOTES.map(() => Array(16).fill(0) as number[]);
+/**
+ * Drum slots the rows play. The first four keep their original order,
+ * so patterns saved with the old 4-row sequencer still land on the same sounds.
+ */
+const SEQ_SLOTS = [0, 2, 6, 3, 10, 1, 9, 13];
+const SEQ_NOTES = SEQ_SLOTS.map((s) => DRUM_BASE + s);
+const MAX_STEPS = 16 * BARS[BARS.length - 1];
+
+/** Pads old or partial patterns out to every row and the longest length, so indexing is always safe. */
+const normalize = (pattern?: number[][]) =>
+  SEQ_NOTES.map((_, r) => Array.from({ length: MAX_STEPS }, (_, s) => pattern?.[r]?.[s] ?? 0));
 
 export const sequencer: ModuleDef = {
   type: 'sequencer',
@@ -34,24 +47,27 @@ export const sequencer: ModuleDef = {
   width: 380,
   inputs: [],
   outputs: [{ id: 'midi', label: 'MIDI', type: 'midi' }],
-  params: [{ id: 'swing', label: 'Swing', min: 0, max: 0.6, default: 0 }],
+  params: [
+    { id: 'swing', label: 'Swing', min: 0, max: 0.6, default: 0 },
+    { id: 'bars', label: 'Length', kind: 'enum', options: ['1 bar', '2 bars', '4 bars'], default: 0 },
+  ],
   defaultData: () => {
-    const p = emptyPattern();
+    const p = normalize();
     [0, 4, 8, 12].forEach((s) => (p[0][s] = 1));
     [4, 12].forEach((s) => (p[1][s] = 1));
     [2, 6, 10, 14].forEach((s) => (p[2][s] = 1));
     return { pattern: p };
   },
   create({ emit, live }, p, data) {
-    let pattern = (data.pattern as number[][]) ?? emptyPattern();
+    let pattern = normalize(data.pattern as number[][]);
     return {
       onStep(step, time, dur) {
-        const s = step % 16;
+        const s = step % (16 * BARS[p.bars]);
         const t = time + (s % 2 === 1 ? p.swing * dur : 0);
         pattern.forEach((row, r) => {
           if (!row[s]) return;
-          emit('midi', { type: 'noteOn', note: DRUM_NOTES[r], velocity: 1, time: t });
-          emit('midi', { type: 'noteOff', note: DRUM_NOTES[r], velocity: 0, time: t + dur * 0.5 });
+          emit('midi', { type: 'noteOn', note: SEQ_NOTES[r], velocity: 1, time: t });
+          emit('midi', { type: 'noteOff', note: SEQ_NOTES[r], velocity: 0, time: t + dur * 0.5 });
         });
         live(s, t);
       },
@@ -60,7 +76,7 @@ export const sequencer: ModuleDef = {
         p[id] = v;
       },
       setData(d) {
-        pattern = (d.pattern as number[][]) ?? pattern;
+        if (d.pattern) pattern = normalize(d.pattern as number[][]);
       },
     };
   },
@@ -69,25 +85,55 @@ export const sequencer: ModuleDef = {
 
 function SequencerPanel({ id, node, setData }: PanelProps) {
   const playhead = useLive<number>(id) ?? -1;
-  const pattern = (node.data.pattern as number[][]) ?? emptyPattern();
+  const pattern = normalize(node.data.pattern as number[][]);
+  const bars = BARS[node.params.bars ?? 0];
+  const [picked, setPicked] = useState(0);
+  const page = Math.min(picked, bars - 1);
+  const offset = page * 16;
+  const latest = () => normalize(store.get().nodes[id]?.data.pattern as number[][]);
   const cell = usePaint<[number, number]>(([r, s], on) => {
-    const latest = (store.get().nodes[id]?.data.pattern as number[][]) ?? pattern;
-    const next = latest.map((row) => [...row]);
+    const next = latest();
     next[r][s] = on ? 1 : 0;
     setData({ pattern: next });
   });
+  const copyToAll = () => {
+    const next = latest();
+    for (const row of next) {
+      for (let b = 0; b < bars; b++) if (b !== page) for (let s = 0; s < 16; s++) row[b * 16 + s] = row[offset + s];
+    }
+    setData({ pattern: next });
+  };
   return (
     <div className="seq nodrag" style={{ touchAction: 'none' }}>
+      {bars > 1 && (
+        <div className="seq-pages">
+          {Array.from({ length: bars }, (_, b) => (
+            <button
+              key={b}
+              className={`${b === page ? 'on' : ''} ${playhead >= 0 && Math.floor(playhead / 16) === b ? 'playing' : ''}`}
+              onClick={() => setPicked(b)}
+            >
+              Bar {b + 1}
+            </button>
+          ))}
+          <button className="seq-copy" onClick={copyToAll} title="Copy this bar into every other bar">
+            Copy to all
+          </button>
+        </div>
+      )}
       {pattern.map((row, r) => (
         <div className="seq-row" key={r}>
-          <span className="seq-label">{DRUM_NAMES[r]}</span>
-          {row.map((on, s) => (
-            <div
-              key={s}
-              className={`seq-cell ${on ? 'on' : ''} ${s === playhead ? 'head' : ''} ${s % 4 === 0 ? 'beat' : ''}`}
-              {...cell([r, s], !!on)}
-            />
-          ))}
+          <span className="seq-label">{DRUM_NAMES[SEQ_SLOTS[r]]}</span>
+          {row.slice(offset, offset + 16).map((on, i) => {
+            const s = offset + i;
+            return (
+              <div
+                key={s}
+                className={`seq-cell ${on ? 'on' : ''} ${s === playhead ? 'head' : ''} ${i % 4 === 0 ? 'beat' : ''}`}
+                {...cell([r, s], !!on)}
+              />
+            );
+          })}
         </div>
       ))}
     </div>
@@ -99,7 +145,6 @@ function SequencerPanel({ id, node, setData }: PanelProps) {
 // ---------------------------------------------------------------------------
 
 const POINTS = 32;
-const BARS = [1, 2, 4];
 
 export const automation: ModuleDef = {
   type: 'automation',

@@ -887,6 +887,77 @@ button:hover {
   z-index: 2;
 }
 
+/* ---------- pads (16-pad grid in the drum sampler and Pads module) ---------- */
+.pads .pad {
+  height: 40px;
+  font-size: 10px;
+}
+.pads.big .pad {
+  height: 64px;
+}
+.pad.selected {
+  outline: 1px solid var(--c);
+  outline-offset: -1px;
+}
+.pad.down span {
+  opacity: 0.55;
+}
+.drum-edit {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin-top: 8px;
+}
+.drum-edit-name {
+  flex: 1;
+  align-self: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ---------- step sequencer pages ---------- */
+.seq-pages {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+.seq-pages button {
+  padding: 1px 8px;
+  font-size: 10px;
+}
+.seq-pages button.on {
+  background: var(--c);
+  color: #111;
+}
+.seq-pages button.playing:not(.on) {
+  box-shadow: inset 0 -2px 0 var(--c);
+}
+.seq-pages .seq-copy {
+  margin-left: auto;
+}
+
+/* ---------- MIDI recorder ---------- */
+.midirec {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.midirec-roll {
+  position: relative;
+  height: 70px;
+  background: #1b1f27;
+  border-radius: 4px;
+  overflow: hidden;
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+  background-size: calc(100% / var(--bars)) 100%;
+}
+.midirec-note {
+  position: absolute;
+  min-height: 3px;
+  background: var(--c);
+  border-radius: 1px;
+}
+
 /* ---------- recorder ---------- */
 .recorder {
   display: flex;

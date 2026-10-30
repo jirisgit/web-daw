@@ -6,10 +6,10 @@ What a full music suite still needs, grouped by palette category and ranked by h
 
 | Category | Modules |
 | --- | --- |
-| Inputs | Keyboard (`keyboard`), MIDI In (`midiIn`) |
-| Sequencers | Step Sequencer (`sequencer`), Piano Roll (`pianoRoll`), Arpeggiator (`arp`) |
+| Inputs | Keyboard (`keyboard`), Pads (`pads`, 16 touch pads), MIDI In (`midiIn`) |
+| Sequencers | Step Sequencer (`sequencer`, 8 drum rows, 1/2/4 bars), Piano Roll (`pianoRoll`), MIDI Recorder (`midiRecorder`), Arpeggiator (`arp`) |
 | Modulation | Automation Lane (`automation`), LFO (`lfo`), Envelope (`adsr`) |
-| Instruments | Poly Synth (`synth`), Mono Synth (`monoSynth`), Drum Sampler (`drums`), Sampler (`sampler`) |
+| Instruments | Poly Synth (`synth`), Mono Synth (`monoSynth`), Drum Sampler (`drums`, 16 slots on notes 36–51), Sampler (`sampler`) |
 | Effects | Filter (`filter`), EQ (`eq`), Compressor (`compressor`), Distortion (`distortion`), Delay (`delay`), Reverb (`reverb`), Panner (`panner`) |
 | Mixing / output | Mixer (`mixer`), VCA (`vca`), Audio Out (`output`), Recorder (`recorder`) |
 | Tools | Scope (`scope`), Spectrum (`spectrum`), Latency Meter (`latencyMeter`) |
