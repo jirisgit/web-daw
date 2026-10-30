@@ -1,26 +1,41 @@
 import type { Category, ModuleDef } from '../engine/types';
 import { keyboard, midiIn } from './inputs';
-import { automation, sequencer } from './sequencing';
+import { automation, pianoRoll, sequencer } from './sequencing';
+import { arp } from './notes';
+import { adsr } from './modulation';
 import { drums, sampler } from './sound';
-import { synth } from './synth';
-import { delay, filter, lfo, reverb } from './effects';
-import { mixer, output } from './mixing';
+import { monoSynth, synth } from './synth';
+import { compressor, delay, distortion, eq, filter, lfo, panner, reverb } from './effects';
+import { mixer, output, recorder, vca } from './mixing';
 import { latencyMeter } from './meter';
+import { scope, spectrum } from './analysis';
 
 export const MODULES: ModuleDef[] = [
   keyboard,
   midiIn,
   sequencer,
+  pianoRoll,
+  arp,
   automation,
   lfo,
+  adsr,
   synth,
+  monoSynth,
   drums,
   sampler,
   filter,
+  eq,
+  compressor,
+  distortion,
   delay,
   reverb,
+  panner,
   mixer,
+  vca,
   output,
+  recorder,
+  scope,
+  spectrum,
   latencyMeter,
 ];
 

@@ -817,6 +817,105 @@ button:hover {
   padding: 2px 4px;
 }
 
+/* ---------- piano roll ---------- */
+.proll {
+  display: flex;
+  gap: 2px;
+  height: 216px;
+}
+.proll-keys {
+  display: flex;
+  flex-direction: column;
+  width: 26px;
+}
+.proll-key {
+  flex: 1;
+  font-size: 8px;
+  line-height: 1;
+  color: var(--muted);
+  background: #2f3542;
+  border-bottom: 1px solid #1b1f27;
+  display: flex;
+  align-items: center;
+  padding-left: 2px;
+}
+.proll-key.black {
+  background: #1b1f27;
+}
+.proll-grid {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #1b1f27;
+  border-radius: 3px;
+  overflow: hidden;
+  cursor: crosshair;
+}
+/* beat lines every 4 steps, faint lines every step */
+.proll-grid::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.14) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size:
+    calc(100% / var(--cols) * 4) 100%,
+    calc(100% / var(--cols)) 100%;
+}
+.proll-row {
+  flex: 1;
+  background: #262b35;
+  border-bottom: 1px solid #1b1f27;
+  pointer-events: none;
+}
+.proll-row.black {
+  background: #20242d;
+}
+.proll-note {
+  position: absolute;
+  background: var(--c);
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  border-radius: 2px;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 1;
+}
+.proll .auto-head {
+  z-index: 2;
+}
+
+/* ---------- recorder ---------- */
+.recorder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rec-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rec-btn {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+.rec-btn.on {
+  background: #dc2626;
+  color: #fff;
+}
+
+/* ---------- scope / spectrum ---------- */
+.viz {
+  display: block;
+  width: 100%;
+  height: 90px;
+  background: #1b1f27;
+  border-radius: 4px;
+}
+
 /* Playing surfaces: no text selection, long-press menu or tap highlight (they cancel the touch on Android) */
 .keys,
 .pads {

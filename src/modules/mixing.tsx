@@ -1,7 +1,176 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ModuleDef, ParamDef, PanelProps } from '../engine/types';
 import { Fader, Knob, Toggle } from '../ui/controls';
+import { useLive } from '../engine/engine';
 import { smooth } from './util';
+
+// ---------------------------------------------------------------------------
+// VCA: a gain stage whose level can be driven by an envelope or LFO
+// ---------------------------------------------------------------------------
+
+export const vca: ModuleDef = {
+  type: 'vca',
+  title: 'VCA',
+  category: 'mixer',
+  inputs: [
+    { id: 'in', label: 'In', type: 'audio' },
+    { id: 'cv', label: 'Gain mod', type: 'control' },
+  ],
+  outputs: [{ id: 'out', label: 'Out', type: 'audio' }],
+  params: [
+    // Set this to 0 when an envelope drives the gain input, so silence is the resting state
+    { id: 'gain', label: 'Gain', min: 0, max: 1.5, default: 1 },
+    { id: 'mute', label: 'Mute', kind: 'toggle', default: 0 },
+  ],
+  create({ ctx }, p) {
+    const amp = ctx.createGain();
+    const mute = ctx.createGain();
+    amp.gain.value = p.gain;
+    mute.gain.value = p.mute ? 0 : 1;
+    amp.connect(mute);
+    return {
+      inputs: { in: amp, cv: amp.gain },
+      outputs: { out: mute },
+      setParam(id, v, t) {
+        if (id === 'gain') smooth(amp.gain, v, t);
+        if (id === 'mute') smooth(mute.gain, v ? 0 : 1, t, 0.005);
+      },
+    };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Recorder: records what passes through it to a file on this computer
+// ---------------------------------------------------------------------------
+
+interface RecState {
+  state: 'idle' | 'armed' | 'recording';
+  /** performance.now() when recording started */
+  since?: number;
+  url?: string;
+  name?: string;
+}
+
+const pickMime = () =>
+  ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'].find(
+    (m) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(m),
+  ) ?? '';
+
+const stamp = () => new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
+
+export const recorder: ModuleDef = {
+  type: 'recorder',
+  title: 'Recorder',
+  category: 'output',
+  inputs: [{ id: 'in', label: 'In', type: 'audio' }],
+  outputs: [{ id: 'out', label: 'Thru', type: 'audio' }],
+  params: [{ id: 'onBar', label: 'Start on bar', kind: 'toggle', default: 1 }],
+  create({ ctx, engine, live }, p) {
+    const input = ctx.createGain();
+    const dest = ctx.createMediaStreamDestination();
+    input.connect(dest);
+    let rec: MediaRecorder | null = null;
+    let chunks: Blob[] = [];
+    let url: string | undefined;
+    let armed = false;
+    let timer: number | undefined;
+    const publish = (s: RecState) => live(s);
+    publish({ state: 'idle' });
+
+    const begin = () => {
+      armed = false;
+      chunks = [];
+      const mimeType = pickMime();
+      rec = new MediaRecorder(dest.stream, mimeType ? { mimeType } : undefined);
+      rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      rec.onstop = () => {
+        const type = rec?.mimeType || mimeType || 'audio/webm';
+        if (url) URL.revokeObjectURL(url);
+        url = URL.createObjectURL(new Blob(chunks, { type }));
+        const ext = type.includes('mp4') ? 'm4a' : type.includes('ogg') ? 'ogg' : 'webm';
+        publish({ state: 'idle', url, name: `recording-${stamp()}.${ext}` });
+        rec = null;
+      };
+      rec.start(1000);
+      publish({ state: 'recording', since: performance.now() });
+    };
+
+    return {
+      inputs: { in: input },
+      outputs: { out: input },
+      onStep(step, time) {
+        if (!armed || step % 16 !== 0) return;
+        armed = false;
+        clearTimeout(timer);
+        timer = window.setTimeout(begin, Math.max(0, (time - ctx.currentTime) * 1000));
+      },
+      onStop() {
+        if (armed) begin();
+      },
+      setParam(id, v) {
+        p[id] = v;
+      },
+      api: {
+        start() {
+          if (rec) return;
+          if (p.onBar && engine.transport.playing) {
+            armed = true;
+            publish({ state: 'armed' });
+          } else begin();
+        },
+        stop() {
+          armed = false;
+          clearTimeout(timer);
+          if (rec) rec.stop();
+          else publish({ state: 'idle', url });
+        },
+      },
+      dispose() {
+        clearTimeout(timer);
+        if (rec && rec.state !== 'inactive') rec.stop();
+        if (url) URL.revokeObjectURL(url);
+      },
+    };
+  },
+  Panel: RecorderPanel,
+};
+
+function RecorderPanel({ id, engine }: PanelProps) {
+  const s = useLive<RecState>(id) ?? { state: 'idle' };
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (s.state !== 'recording') return;
+    const t = setInterval(() => tick((n) => n + 1), 250);
+    return () => clearInterval(t);
+  }, [s.state]);
+  const api = () => engine.instances.get(id)?.api;
+  const secs = s.since ? Math.floor((performance.now() - s.since) / 1000) : 0;
+  const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  return (
+    <div className="recorder nodrag">
+      <div className="rec-row">
+        {s.state === 'idle' ? (
+          <button className="rec-btn" onClick={() => api()?.start()}>
+            ● Record
+          </button>
+        ) : (
+          <button className="rec-btn on" onClick={() => api()?.stop()}>
+            ■ Stop
+          </button>
+        )}
+        <span className="muted small">
+          {s.state === 'armed' ? 'Waiting for next bar…' : s.state === 'recording' ? clock : ''}
+        </span>
+      </div>
+      {s.state === 'idle' && s.url && (
+        <a className="small" href={s.url} download={s.name}>
+          Download {s.name}
+        </a>
+      )}
+      <div className="muted small">Records on this computer only.</div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Mixer: 4 channels with volume, pan and mute, plus master
